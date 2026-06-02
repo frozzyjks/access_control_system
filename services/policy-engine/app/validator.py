@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from uuid import UUID
 from app.clients import ResourceCatalogClient, ResourceCatalogClientError
+from typing import Awaitable
 from app.schemas import (
     AccessRequestRead,
     ApplyDecisionRequest,
@@ -41,52 +42,15 @@ class AccessRequestValidator:
         self._client = resource_catalog_client
         self._logger = logger
 
-    async def validate(self, request_id: UUID) -> ValidationResult:
-
-        request = await self._fetch_and_verify_pending(request_id)
-        if request is None:
-            return ValidationResult.approve()
+    async def validate(self, request: AccessRequestRead) -> ValidationResult:
 
         self._logger.info(
-            "Validating request: id=%s user=%s operation=%s "
-            "target_type=%s target_id=%s",
-            request.id,
-            request.user_id,
-            request.operation,
-            request.target_type,
-            request.target_id,
+            "Validating request: id=%s user=%s operation=%s target_type=%s target_id=%s",
+            request.id, request.user_id, request.operation,
+            request.target_type, request.target_id,
         )
-
         return await self._route_validation(request)
 
-
-    async def _fetch_and_verify_pending(
-        self,
-        request_id: UUID,
-    ) -> AccessRequestRead | None:
-
-        try:
-            request = await self._client.get_access_request(request_id)
-        except ResourceCatalogClientError as exc:
-            if exc.status_code == 404:
-                self._logger.warning(
-                    "Request not found in Resource Catalog, skipping: "
-                    "request_id=%s",
-                    request_id,
-                )
-                return None
-            raise
-
-        if request.status != RequestStatus.PENDING:
-            self._logger.info(
-                "Request already processed, skipping: "
-                "request_id=%s status=%s",
-                request_id,
-                request.status,
-            )
-            return None
-
-        return request
 
     async def _route_validation(
         self,
@@ -123,7 +87,7 @@ class AccessRequestValidator:
         request: AccessRequestRead,
     ) -> ValidationResult:
 
-        if not await self._entity_exists_access(request.target_id):
+        if not await self._exists(self._client.get_access(request.target_id)):
             return ValidationResult.reject(
                 f"Access {request.target_id} does not exist"
             )
@@ -156,7 +120,7 @@ class AccessRequestValidator:
         request: AccessRequestRead,
     ) -> ValidationResult:
 
-        if not await self._entity_exists_access(request.target_id):
+        if not await self._exists(self._client.get_access(request.target_id)):
             return ValidationResult.reject(
                 f"Access {request.target_id} does not exist"
             )
@@ -173,7 +137,7 @@ class AccessRequestValidator:
         request: AccessRequestRead,
     ) -> ValidationResult:
 
-        if not await self._entity_exists_group(request.target_id):
+        if not await self._exists(self._client.get_right_group(request.target_id)):
             return ValidationResult.reject(
                 f"Right group {request.target_id} does not exist"
             )
@@ -222,7 +186,7 @@ class AccessRequestValidator:
         request: AccessRequestRead,
     ) -> ValidationResult:
 
-        if not await self._entity_exists_group(request.target_id):
+        if not await self._exists(self._client.get_right_group(request.target_id)):
             return ValidationResult.reject(
                 f"Right group {request.target_id} does not exist"
             )
@@ -234,21 +198,10 @@ class AccessRequestValidator:
         )
         return ValidationResult.approve()
 
-
-    async def _entity_exists_access(self, access_id: UUID) -> bool:
-
+    async def _exists(self, coro: Awaitable[object]) -> bool:
+        # Как альтернатива использовать два отдельных метода _entity_exists_access и _entity_exists_group
         try:
-            await self._client.get_access(access_id)
-            return True
-        except ResourceCatalogClientError as exc:
-            if exc.status_code == 404:
-                return False
-            raise
-
-    async def _entity_exists_group(self, group_id: UUID) -> bool:
-
-        try:
-            await self._client.get_right_group(group_id)
+            await coro
             return True
         except ResourceCatalogClientError as exc:
             if exc.status_code == 404:

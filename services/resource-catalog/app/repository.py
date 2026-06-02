@@ -1,6 +1,7 @@
 from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from app.models import (
     AccessModel,
     AccessRequestModel,
@@ -252,20 +253,6 @@ class ResourceCatalogRepository:
         await self._session.flush()
         return request
 
-    async def get_active_user_right_group(
-        self,
-        user_id: str,
-    ) -> UserRightGroupModel | None:
-
-        result = await self._session.scalars(
-            select(UserRightGroupModel)
-            .where(
-                UserRightGroupModel.user_id == user_id,
-                UserRightGroupModel.is_active.is_(True),
-            )
-            .limit(1)
-        )
-        return result.first()
 
     async def deactivate_user_right_group(
         self,
@@ -361,8 +348,6 @@ class ResourceCatalogRepository:
         user_id: str,
     ) -> list[UserAccessModel]:
 
-        from sqlalchemy.orm import joinedload
-
         result = await self._session.scalars(
             select(UserAccessModel)
             .options(joinedload(UserAccessModel.access))
@@ -378,8 +363,6 @@ class ResourceCatalogRepository:
         self,
         user_id: str,
     ) -> UserRightGroupModel | None:
-
-        from sqlalchemy.orm import joinedload
 
         result = await self._session.scalars(
             select(UserRightGroupModel)

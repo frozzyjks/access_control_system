@@ -163,10 +163,6 @@ class ResourceCatalogService:
         await self.get_right_group(group_id)
         return await self._repository.list_group_accesses(group_id)
 
-    async def list_access_groups(self, access_id: UUID) -> list[RightGroupModel]:
-
-        await self.get_access(access_id)
-        return await self._repository.list_access_groups(access_id)
 
     async def add_group_conflict(
         self,
@@ -235,7 +231,12 @@ class ResourceCatalogService:
     ) -> AccessRequestModel:
 
         request = await self.get_access_request(request_id)
-        self._validate_request_is_pending(request)
+
+        if request.status != RequestStatus.PENDING:
+            raise InvalidCatalogOperationError(
+                f"Cannot apply decision to request with status '{request.status}'. "
+                "Only PENDING requests can be processed."
+            )
 
         await self._repository.update_request_decision(
             request,
@@ -250,13 +251,6 @@ class ResourceCatalogService:
         await self._session.commit()
         return request
 
-    def _validate_request_is_pending(self, request: AccessRequestModel) -> None:
-
-        if request.status != RequestStatus.PENDING:
-            raise InvalidCatalogOperationError(
-                f"Cannot apply decision to request with status '{request.status}'. "
-                "Only PENDING requests can be processed."
-            )
 
     async def _apply_approved_request(
         self,
@@ -328,7 +322,7 @@ class ResourceCatalogService:
         modified_by: str,
     ) -> None:
 
-        current_assignment = await self._repository.get_active_user_right_group(
+        current_assignment = await self._repository.get_active_user_right_group_with_details(
             request.user_id,
         )
 
@@ -354,7 +348,7 @@ class ResourceCatalogService:
         modified_by: str,
     ) -> None:
 
-        current_assignment = await self._repository.get_active_user_right_group(
+        current_assignment = await self._repository.get_active_user_right_group_with_details(
             request.user_id,
         )
 

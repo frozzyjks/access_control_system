@@ -198,17 +198,14 @@ class AccessRequestConsumer:
                 return ValidationResult.approve(), False
             raise
 
-        from app.schemas import RequestStatus
         if request.status != RequestStatus.PENDING:
             self._logger.info(
-                "Request not PENDING before validation, skipping: "
-                "request_id=%s status=%s",
-                event.request_id,
-                request.status,
+                "Request not PENDING, skipping: request_id=%s status=%s",
+                event.request_id, request.status,
             )
             return ValidationResult.approve(), False
 
-        result = await validator.validate(event.request_id)
+        result = await validator.validate(request)
         return result, True
 
     async def _send_decision_safely(
