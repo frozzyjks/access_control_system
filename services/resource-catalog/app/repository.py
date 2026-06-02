@@ -41,6 +41,13 @@ class ResourceCatalogRepository:
 
         return await self._session.get(ResourceModel, resource_id)
 
+    async def list_resources(self) -> list[ResourceModel]:
+        result = await self._session.scalars(
+            select(ResourceModel).order_by(ResourceModel.name)
+        )
+        return list(result)
+
+
     async def create_access(
         self,
         *,
@@ -90,6 +97,13 @@ class ResourceCatalogRepository:
     async def get_right_group(self, group_id: UUID) -> RightGroupModel | None:
 
         return await self._session.get(RightGroupModel, group_id)
+
+    async def list_right_groups(self) -> list[RightGroupModel]:
+        result = await self._session.scalars(
+            select(RightGroupModel).order_by(RightGroupModel.name)
+        )
+        return list(result)
+
 
     async def add_access_to_group(
         self,

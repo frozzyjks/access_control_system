@@ -63,6 +63,15 @@ class AccessRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+class ResourceRead(BaseModel):
+
+    id: UUID
+    name: str
+    resource_type: str
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+
 
 class RightGroupRead(BaseModel):
 

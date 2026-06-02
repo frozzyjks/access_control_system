@@ -81,6 +81,10 @@ class ResourceCatalogService:
             raise EntityNotFoundError("Resource was not found")
         return resource
 
+    async def list_resources(self) -> list[ResourceModel]:
+        return await self._repository.list_resources()
+
+
     async def create_access(self, payload: AccessCreate) -> AccessModel:
 
         await self.get_resource(payload.resource_id)
@@ -133,6 +137,10 @@ class ResourceCatalogService:
         if group is None:
             raise EntityNotFoundError("Right group was not found")
         return group
+
+    async def list_right_groups(self) -> list[RightGroupModel]:
+        return await self._repository.list_right_groups()
+
 
     async def add_access_to_group(
         self,

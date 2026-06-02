@@ -7,6 +7,8 @@ from app.schemas import (
     AccessRequestCreate,
     AccessRequestRead,
     UserPermissionsRead,
+    ResourceRead,
+    RightGroupRead,
 )
 
 
@@ -58,6 +60,21 @@ class ResourceCatalogClient:
             url=f"/requests/{request_id}",
         )
         return AccessRequestRead.model_validate(data)
+
+    async def list_resources(self) -> list[ResourceRead]:
+        data = await self._request_json(
+            method="GET",
+            url="/resources",
+        )
+        return [ResourceRead.model_validate(item) for item in data]
+
+    async def list_right_groups(self) -> list[RightGroupRead]:
+        data = await self._request_json(
+            method="GET",
+            url="/right-groups",
+        )
+        return [RightGroupRead.model_validate(item) for item in data]
+
 
     async def list_user_requests(self, user_id: str) -> list[AccessRequestRead]:
 

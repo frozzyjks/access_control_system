@@ -10,6 +10,8 @@ from app.schemas import (
     AccessRequestRead,
     ErrorResponse,
     UserPermissionsRead,
+    ResourceRead,
+    RightGroupRead,
 )
 from app.service import (
     AccessManagerError,
@@ -151,6 +153,29 @@ async def get_user_permissions(
         return await service.get_user_permissions(user_id)
     except AccessManagerError as exc:
         raise_http_error(exc)
+
+
+@router.get(
+    "/resources",
+    response_model=list[ResourceRead],
+    tags=["resources"],
+)
+async def list_resources(
+    service: AccessRequestService = Depends(get_access_request_service),
+) -> list[ResourceRead]:
+
+    return await service.list_resources()
+
+@router.get(
+    "/right-groups",
+    response_model=list[RightGroupRead],
+    tags=["right-groups"],
+)
+async def list_right_groups(
+    service: AccessRequestService = Depends(get_access_request_service),
+) -> list[RightGroupRead]:
+
+    return await service.list_right_groups()
 
 
 @router.get(

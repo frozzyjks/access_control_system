@@ -85,6 +85,19 @@ async def create_resource(
 
 
 @router.get(
+    "/resources",
+    response_model=list[ResourceRead],
+    tags=["resources"],
+)
+async def list_resources(
+    service: ResourceCatalogService = Depends(get_catalog_service),
+) -> list[ResourceRead]:
+
+    resources = await service.list_resources()
+    return [ResourceRead.model_validate(r) for r in resources]
+
+
+@router.get(
     "/resources/{resource_id}/accesses",
     response_model=list[AccessRead],
     responses={404: {"model": ErrorResponse}},
@@ -179,6 +192,19 @@ async def get_right_group(
     except CatalogError as exc:
         raise_http_error(exc)
         raise
+
+
+@router.get(
+    "/right-groups",
+    response_model=list[RightGroupRead],
+    tags=["right-groups"],
+)
+async def list_right_groups(
+    service: ResourceCatalogService = Depends(get_catalog_service),
+) -> list[RightGroupRead]:
+
+    groups = await service.list_right_groups()
+    return [RightGroupRead.model_validate(g) for g in groups]
 
 
 @router.post(

@@ -8,6 +8,8 @@ from app.schemas import (
     AccessRequestCreate,
     AccessRequestRead,
     UserPermissionsRead,
+    ResourceRead,
+    RightGroupRead,
 )
 
 
@@ -78,6 +80,17 @@ class AccessRequestService:
         return await self._proxy(
             self._resource_catalog_client.get_user_permissions(user_id),
         )
+
+    async def list_resources(self) -> list[ResourceRead]:
+        return await self._proxy(
+            self._resource_catalog_client.list_resources(),
+        )
+
+    async def list_right_groups(self) -> list[RightGroupRead]:
+        return await self._proxy(
+            self._resource_catalog_client.list_right_groups(),
+        )
+
 
     async def list_resource_accesses(
         self,
