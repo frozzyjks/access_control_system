@@ -10,8 +10,6 @@ class Settings(BaseSettings):
     kafka_consumer_group_id: str = "policy-engine-group"
     resource_catalog_url: str = "http://resource-catalog:8000"
     resource_catalog_timeout_seconds: float = 5.0
-    kafka_retry_interval_seconds: float = 5.0
-    kafka_max_retries: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

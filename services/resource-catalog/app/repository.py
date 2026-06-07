@@ -142,18 +142,6 @@ class ResourceCatalogRepository:
         )
         return list(result)
 
-    async def list_access_groups(self, access_id: UUID) -> list[RightGroupModel]:
-
-        result = await self._session.scalars(
-            select(RightGroupModel)
-            .join(
-                RightGroupAccessModel,
-                RightGroupAccessModel.group_id == RightGroupModel.id,
-            )
-            .where(RightGroupAccessModel.access_id == access_id)
-            .order_by(RightGroupModel.name)
-        )
-        return list(result)
 
     async def add_group_conflict(
         self,
