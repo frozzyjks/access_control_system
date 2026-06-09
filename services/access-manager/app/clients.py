@@ -17,7 +17,6 @@ class CatalogUnavailableError(Exception):
 
 
 class CatalogResponseError(Exception):
-    """Directory has responded with an error code (4xx/5xx)"""
 
     def __init__(self, message: str, *, status_code: int) -> None:
         super().__init__(message)
