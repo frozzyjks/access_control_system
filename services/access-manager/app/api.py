@@ -1,8 +1,11 @@
-from collections.abc import AsyncGenerator
-from typing import NoReturn
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from app.clients import ResourceCatalogClient
+from fastapi import APIRouter, Depends, Request, status
+from app.clients import (
+    AccessRequestsGateway,
+    PermissionsGateway,
+    ResourcesGateway,
+    RightGroupsGateway,
+)
 from app.kafka import AccessRequestEventPublisher
 from app.schemas import (
     AccessRead,
@@ -13,13 +16,7 @@ from app.schemas import (
     ResourceRead,
     RightGroupRead,
 )
-from app.service import (
-    AccessManagerError,
-    AccessRequestService,
-    RequestNotFoundError,
-    RequestPublicationError,
-    ResourceCatalogProxyError,
-)
+from app.service import submit_access_request
 
 
 router = APIRouter()
@@ -29,47 +26,20 @@ def get_event_publisher(request: Request) -> AccessRequestEventPublisher:
     return request.app.state.access_request_event_publisher
 
 
-def get_resource_catalog_client(request: Request) -> ResourceCatalogClient:
-    return request.app.state.resource_catalog_client
+def get_requests_gateway(request: Request) -> AccessRequestsGateway:
+    return request.app.state.catalog_gateways.requests
 
 
-async def get_access_request_service(
-    event_publisher: AccessRequestEventPublisher = Depends(get_event_publisher),
-    resource_catalog_client: ResourceCatalogClient = Depends(get_resource_catalog_client),
-) -> AsyncGenerator[AccessRequestService, None]:
-
-    yield AccessRequestService(
-        resource_catalog_client=resource_catalog_client,
-        event_publisher=event_publisher,
-    )
+def get_resources_gateway(request: Request) -> ResourcesGateway:
+    return request.app.state.catalog_gateways.resources
 
 
-def raise_http_error(exc: AccessManagerError) -> NoReturn:
-    if isinstance(exc, RequestNotFoundError):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=exc.message,
-        ) from exc
+def get_right_groups_gateway(request: Request) -> RightGroupsGateway:
+    return request.app.state.catalog_gateways.right_groups
 
-    if isinstance(exc, RequestPublicationError):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=exc.message,
-        ) from exc
 
-    if isinstance(exc, ResourceCatalogProxyError):
-        upstream_status = exc.status_code
-        if upstream_status is None or upstream_status >= 500:
-            http_status = status.HTTP_502_BAD_GATEWAY
-        else:
-            http_status = upstream_status
-
-        raise HTTPException(status_code=http_status, detail=exc.message) from exc
-
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=exc.message,
-    ) from exc
+def get_permissions_gateway(request: Request) -> PermissionsGateway:
+    return request.app.state.catalog_gateways.permissions
 
 
 @router.post(
@@ -85,13 +55,15 @@ def raise_http_error(exc: AccessManagerError) -> NoReturn:
 )
 async def create_request(
     payload: AccessRequestCreate,
-    service: AccessRequestService = Depends(get_access_request_service),
+    requests: AccessRequestsGateway = Depends(get_requests_gateway),
+    publisher: AccessRequestEventPublisher = Depends(get_event_publisher),
 ) -> AccessRequestRead:
 
-    try:
-        return await service.create_request(payload)
-    except AccessManagerError as exc:
-        raise_http_error(exc)
+    return await submit_access_request(
+        payload,
+        requests=requests,
+        publisher=publisher,
+    )
 
 
 @router.get(
@@ -106,13 +78,10 @@ async def create_request(
 )
 async def get_request(
     request_id: UUID,
-    service: AccessRequestService = Depends(get_access_request_service),
+    requests: AccessRequestsGateway = Depends(get_requests_gateway),
 ) -> AccessRequestRead:
 
-    try:
-        return await service.get_request(request_id)
-    except AccessManagerError as exc:
-        raise_http_error(exc)
+    return await requests.get(request_id)
 
 
 @router.get(
@@ -126,13 +95,10 @@ async def get_request(
 )
 async def list_user_requests(
     user_id: str,
-    service: AccessRequestService = Depends(get_access_request_service),
+    requests: AccessRequestsGateway = Depends(get_requests_gateway),
 ) -> list[AccessRequestRead]:
 
-    try:
-        return await service.list_user_requests(user_id)
-    except AccessManagerError as exc:
-        raise_http_error(exc)
+    return await requests.list_for_user(user_id)
 
 
 @router.get(
@@ -146,36 +112,40 @@ async def list_user_requests(
 )
 async def get_user_permissions(
     user_id: str,
-    service: AccessRequestService = Depends(get_access_request_service),
+    permissions: PermissionsGateway = Depends(get_permissions_gateway),
 ) -> UserPermissionsRead:
 
-    try:
-        return await service.get_user_permissions(user_id)
-    except AccessManagerError as exc:
-        raise_http_error(exc)
+    return await permissions.get_for_user(user_id)
 
 
 @router.get(
     "/resources",
     response_model=list[ResourceRead],
+    responses={
+        502: {"model": ErrorResponse, "description": "Resource Catalog unavailable"},
+    },
     tags=["resources"],
 )
 async def list_resources(
-    service: AccessRequestService = Depends(get_access_request_service),
+    resources: ResourcesGateway = Depends(get_resources_gateway),
 ) -> list[ResourceRead]:
 
-    return await service.list_resources()
+    return await resources.list_resources()
+
 
 @router.get(
     "/right-groups",
     response_model=list[RightGroupRead],
+    responses={
+        502: {"model": ErrorResponse, "description": "Resource Catalog unavailable"},
+    },
     tags=["right-groups"],
 )
 async def list_right_groups(
-    service: AccessRequestService = Depends(get_access_request_service),
+    right_groups: RightGroupsGateway = Depends(get_right_groups_gateway),
 ) -> list[RightGroupRead]:
 
-    return await service.list_right_groups()
+    return await right_groups.list_right_groups()
 
 
 @router.get(
@@ -190,10 +160,7 @@ async def list_right_groups(
 )
 async def list_resource_accesses(
     resource_id: UUID,
-    service: AccessRequestService = Depends(get_access_request_service),
+    resources: ResourcesGateway = Depends(get_resources_gateway),
 ) -> list[AccessRead]:
 
-    try:
-        return await service.list_resource_accesses(resource_id)
-    except AccessManagerError as exc:
-        raise_http_error(exc)
+    return await resources.list_accesses(resource_id)
